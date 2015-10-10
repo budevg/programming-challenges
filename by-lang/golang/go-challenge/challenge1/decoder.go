@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"io"
 )
 
 // DecodeFile decodes the drum machine file found at the provided path
@@ -25,42 +26,31 @@ func DecodeFile(path string) (*Pattern, error) {
 		return nil, err
 	}
 
-	for remainingDecodeSize > 0 {
-		count, err := decodeNextTrack(f, &p)
+	r := io.LimitReader(f, int64(remainingDecodeSize))
+	for {
+		err = decodeNextTrack(r, &p)
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			return nil, err
 		}
-		remainingDecodeSize -= count
 	}
 
 	return &p, nil
 }
 
-// Pattern is the high level representation of the
-// drum pattern contained in a .splice file.
-type Pattern struct {
-	version [32]byte
-	tempo   float32
-	tracks  []Track
-}
-
-type Track struct {
-	id    uint32
-	name  string
-	steps [16]bool
-}
-
 func (p *Pattern) String() string {
-	res := []string{}
+	var res []string
 	res = append(res, fmt.Sprintf("Saved with HW Version: %s", strings.TrimRight(string(p.version[:]), "\x00")))
 	res = append(res, fmt.Sprintf("Tempo: %s", toPrettyFloat(p.tempo)))
-	for _, track := range p.tracks {
+	for _, t := range p.tracks {
 		steps := bytes.Buffer{}
 		for i := 0; i < 16; i++ {
 			if i%4 == 0 {
 				steps.WriteString("|")
 			}
-			if track.steps[i] {
+			if t.steps[i] {
 				steps.WriteString("x")
 			} else {
 				steps.WriteString("-")
@@ -68,7 +58,7 @@ func (p *Pattern) String() string {
 		}
 		steps.WriteString("|")
 
-		res = append(res, fmt.Sprintf("(%d) %s\t%s", track.id, track.name, steps.String()))
+		res = append(res, fmt.Sprintf("(%d) %s\t%s", t.id, t.name, steps.String()))
 	}
 	res = append(res, "")
 	return strings.Join(res, "\n")
@@ -77,80 +67,72 @@ func (p *Pattern) String() string {
 func toPrettyFloat(f float32) string {
 	if float32(int(f)) == f {
 		return fmt.Sprintf("%d", int(f))
-	} else {
-		return fmt.Sprintf("%.1f", f)
 	}
+
+	return fmt.Sprintf("%.1f", f)
 }
 
-func decodeHeader(f *os.File, p *Pattern) (uint64, error) {
-	magic := make([]byte, 6)
-	err := binary.Read(f, binary.LittleEndian, &magic)
-	if err != nil {
-		return 0, err
+type errReader struct {
+	r io.Reader
+	err error
+}
+
+func (er *errReader) Read(order binary.ByteOrder, data interface{}) {
+	if er.err != nil {
+		return
 	}
 
-	if string(magic) != "SPLICE" {
+	er.err = binary.Read(er.r, order, data)
+}
+
+func decodeHeader(r io.Reader, p *Pattern) (uint64, error) {
+	er := &errReader{r : r}
+
+	magic := make([]byte, 6)
+	er.Read(binary.LittleEndian, &magic)
+	if er.err == nil && string(magic) != "SPLICE" {
 		return 0, fmt.Errorf("invalid magic [%s]", string(magic))
 	}
 
 	var encodingSize uint64
-	err = binary.Read(f, binary.BigEndian, &encodingSize)
-	if err != nil {
-		return 0, err
-	}
+	er.Read(binary.BigEndian, &encodingSize)
 
-	err = binary.Read(f, binary.BigEndian, &p.version)
-	if err != nil {
-		return 0, err
-	}
+	er.Read(binary.BigEndian, &p.version)
 	encodingSize -= 32
 
-	err = binary.Read(f, binary.LittleEndian, &p.tempo)
-	if err != nil {
-		return 0, err
-	}
+	er.Read(binary.LittleEndian, &p.tempo)
 	encodingSize -= 4
 
+	if er.err != nil {
+		return  0, er.err
+	}
 	return encodingSize, nil
 }
 
-func decodeNextTrack(f *os.File, p *Pattern) (uint64, error) {
+func decodeNextTrack(r io.Reader, p *Pattern) error {
+	er := &errReader{r : r}
 	t := Track{}
-	count := 0
 
-	err := binary.Read(f, binary.LittleEndian, &t.id)
-	if err != nil {
-		return 0, err
-	}
-	count += 4
+	er.Read(binary.LittleEndian, &t.id)
 
 	var nameSize byte
-	err = binary.Read(f, binary.LittleEndian, &nameSize)
-	if err != nil {
-		return 0, err
-	}
-	count += 1
+	er.Read(binary.LittleEndian, &nameSize)
 
 	name := make([]byte, nameSize)
-	err = binary.Read(f, binary.LittleEndian, &name)
-	if err != nil {
-		return 0, err
-	}
-	count += int(nameSize)
+	er.Read(binary.LittleEndian, &name)
 
 	t.name = string(name)
 	for i := 0; i < 16; i++ {
 		var b byte
-		err = binary.Read(f, binary.LittleEndian, &b)
-		if err != nil {
-			return 0, err
-		}
+		er.Read(binary.LittleEndian, &b)
 		t.steps[i] = (b == 1)
 
 	}
-	count += 16
+
+	if er.err != nil {
+		return er.err
+	}
 
 	p.tracks = append(p.tracks, t)
-	return uint64(count), nil
-
+	return nil
 }
