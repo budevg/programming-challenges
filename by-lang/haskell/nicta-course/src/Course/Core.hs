@@ -60,7 +60,6 @@ import Prelude(
   , Fractional(..)
   , Bool(..)
   , Either(..)
-  , Char
   , Int
   , Integer
   , IO
