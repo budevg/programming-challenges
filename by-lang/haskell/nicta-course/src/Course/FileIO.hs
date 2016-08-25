@@ -61,8 +61,11 @@ the contents of c
 -- /Tip:/ use @getArgs@ and @run@
 main ::
   IO ()
-main =
-  error "todo: Course.FileIO#main"
+main = do
+  args <- getArgs
+  case args of
+    (arg :. _) -> run arg
+    _ -> error "missing argument"
 
 type FilePath =
   Chars
@@ -71,31 +74,41 @@ type FilePath =
 run ::
   Chars
   -> IO ()
-run =
-  error "todo: Course.FileIO#run"
+run filesListPath = do
+  text <- readFile filesListPath
+  let filePaths = lines text
+  files <- getFiles filePaths
+  printFiles files
 
 getFiles ::
   List FilePath
   -> IO (List (FilePath, Chars))
-getFiles =
-  error "todo: Course.FileIO#getFiles"
+getFiles Nil = return Nil
+getFiles (x :. xs) = do
+  file <- getFile x
+  files <- getFiles xs
+  return $ file :. files
+
 
 getFile ::
   FilePath
   -> IO (FilePath, Chars)
-getFile =
-  error "todo: Course.FileIO#getFile"
+getFile path = do
+  text <- readFile path
+  return (path, text)
 
 printFiles ::
   List (FilePath, Chars)
   -> IO ()
-printFiles =
-  error "todo: Course.FileIO#printFiles"
+printFiles Nil = return ()
+printFiles (x :. xs) = do
+  printFile (fst x) (snd x)
+  printFiles xs
 
 printFile ::
   FilePath
   -> Chars
   -> IO ()
-printFile =
-  error "todo: Course.FileIO#printFile"
-
+printFile path text = do
+  putStrLn $ "============ " ++ path
+  putStrLn text
