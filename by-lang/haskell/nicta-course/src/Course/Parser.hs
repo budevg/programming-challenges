@@ -77,8 +77,7 @@ unexpectedCharParser c =
 valueParser ::
   a
   -> Parser a
-valueParser =
-  error "todo: Course.Parser#valueParser"
+valueParser a = P $ \s -> Result s a
 
 -- | Return a parser that always fails with the given error.
 --
@@ -86,8 +85,7 @@ valueParser =
 -- True
 failed ::
   Parser a
-failed =
-  error "todo: Course.Parser#failed"
+failed = P $ \_ -> ErrorResult Failed
 
 -- | Return a parser that succeeds with a character off the input or fails with an error if the input is empty.
 --
@@ -98,8 +96,10 @@ failed =
 -- True
 character ::
   Parser Char
-character =
-  error "todo: Course.Parser#character"
+character = P $ \s -> case s of
+                        Nil -> ErrorResult Failed
+                        _ -> let (x :. xs) = s
+                             in Result xs x
 
 -- | Return a parser that maps any succeeding result with the given function.
 --
@@ -112,8 +112,10 @@ mapParser ::
   (a -> b)
   -> Parser a
   -> Parser b
-mapParser =
-  error "todo: Course.Parser#mapParser"
+mapParser f (P pa) = P $ \s ->
+  case (pa s) of
+    Result s' c -> Result s' (f c)
+    ErrorResult e -> ErrorResult e
 
 -- | This is @mapParser@ with the arguments flipped.
 -- It might be more helpful to use this function if you prefer this argument order.
@@ -149,8 +151,10 @@ bindParser ::
   (a -> Parser b)
   -> Parser a
   -> Parser b
-bindParser =
-  error "todo: Course.Parser#bindParser"
+bindParser f (P pa) = P $ \s ->
+  case pa s of
+    Result s' a -> parse (f a) $ s'
+    ErrorResult e -> ErrorResult e
 
 -- | This is @bindParser@ with the arguments flipped.
 -- It might be more helpful to use this function if you prefer this argument order.
@@ -179,8 +183,7 @@ flbindParser =
   Parser a
   -> Parser b
   -> Parser b
-(>>>) =
-  error "todo: Course.Parser#(>>>)"
+(>>>) pa pb = bindParser (\_ -> pb) pa
 
 -- | Return a parser that tries the first parser for a successful value.
 --
@@ -203,8 +206,10 @@ flbindParser =
   Parser a
   -> Parser a
   -> Parser a
-(|||) =
-  error "todo: Course.Parser#(|||)"
+(|||) (P pa) (P pb) = P $ \s ->
+  case pa s of
+    Result s' a -> Result s' a
+    _ -> pb s
 
 infixl 3 |||
 
