@@ -61,8 +61,10 @@ the contents of c
 -- /Tip:/ use @getArgs@ and @run@
 main ::
   IO ()
-main =
-  error "todo: Course.FileIO#main"
+main = do
+  args <- getArgs
+  sequence $ run <$> args
+  return ()
 
 type FilePath =
   Chars
@@ -71,31 +73,38 @@ type FilePath =
 run ::
   Chars
   -> IO ()
-run =
-  error "todo: Course.FileIO#run"
+run path = do
+  names <- readFile path >>= \txt -> return $ lines txt
+  getFiles names >>= printFiles
 
 getFiles ::
   List FilePath
   -> IO (List (FilePath, Chars))
-getFiles =
-  error "todo: Course.FileIO#getFiles"
+getFiles Nil = return Nil
+getFiles (x :. xs) = do
+  info <- getFile x
+  infos <- getFiles xs
+  return $ info :. infos
 
 getFile ::
   FilePath
   -> IO (FilePath, Chars)
-getFile =
-  error "todo: Course.FileIO#getFile"
+getFile path = do
+  txt <- readFile path
+  return (path, txt)
 
 printFiles ::
   List (FilePath, Chars)
   -> IO ()
-printFiles =
-  error "todo: Course.FileIO#printFiles"
+printFiles Nil = return ()
+printFiles (x :. xs) = do
+  uncurry printFile $ x
+  printFiles xs
 
 printFile ::
   FilePath
   -> Chars
   -> IO ()
-printFile =
-  error "todo: Course.FileIO#printFile"
-
+printFile path text = do
+  putStrLn $ "============ " ++ path
+  putStrLn text
