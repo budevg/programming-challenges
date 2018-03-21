@@ -56,14 +56,17 @@ newtype CommentText = CommentText Text
 -- AddRq : Which needs the target topic, and the body of the comment.
 -- ViewRq : Which needs the topic being requested.
 -- ListRq : Which doesn't need anything and lists all of the current topics.
-data RqType
+data RqType = AddRq Topic CommentText
+            | ViewRq Topic
+            | ListRq
 
 -- Not everything goes according to plan, but it's important that our types
 -- reflect when errors can be introduced into our program. Additionally it's
 -- useful to be able to be descriptive about what went wrong.
 
 -- Fill in the error constructors as you need them.
-data Error
+data Error = EmptyTopicError
+           | EmptyCommentError
 
 
 -- Provide the constructors for a sum type to specify the `ContentType` Header,
@@ -72,7 +75,8 @@ data Error
 --
 -- - plain text
 -- - json
-data ContentType
+data ContentType = PlainTextContent
+                 | JsonContent
 
 -- The ``ContentType`` constructors don't match what is required for the header
 -- information. Because ``wai`` uses a stringly type. So write a function that
@@ -88,8 +92,8 @@ data ContentType
 renderContentType
   :: ContentType
   -> ByteString
-renderContentType =
-  error "renderContentType not implemented"
+renderContentType PlainTextContent = "text/plain"
+renderContentType JsonContent = "application/json"
 
 -- We can choose to *not* export the constructor for a data type and instead
 -- provide a function of our own. In our case, we're not interested in empty
@@ -102,23 +106,23 @@ renderContentType =
 mkTopic
   :: Text
   -> Either Error Topic
-mkTopic =
-  error "mkTopic not implemented"
+mkTopic txt
+  | txt == "" = Left EmptyTopicError
+  | otherwise = Right $ Topic txt
 
 getTopic
   :: Topic
   -> Text
-getTopic =
-  error "getTopic not implemented"
+getTopic (Topic txt ) =  txt
 
 mkCommentText
   :: Text
   -> Either Error CommentText
-mkCommentText =
-  error "mkCommentText not implemented"
+mkCommentText txt
+  | txt == "" = Left EmptyCommentError
+  | otherwise = Right $ CommentText txt
 
 getCommentText
   :: CommentText
   -> Text
-getCommentText =
-  error "getCommentText not implemented"
+getCommentText (CommentText txt ) = txt
