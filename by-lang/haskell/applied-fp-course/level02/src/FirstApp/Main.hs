@@ -6,8 +6,8 @@ import           Network.Wai              (Application, Request, Response,
                                            strictRequestBody)
 import           Network.Wai.Handler.Warp (run)
 
-import           Network.HTTP.Types       (Status, hContentType, status200,
-                                           status400, status404)
+import           Network.HTTP.Types       (Status, hContentType,
+                                           status200, status400, status404)
 
 import qualified Data.ByteString.Lazy     as LBS
 
@@ -91,6 +91,7 @@ mkErrorResponse
   -> Response
 mkErrorResponse EmptyTopicError = resp400 PlainTextContent "empty topic"
 mkErrorResponse EmptyCommentError = resp400 PlainTextContent "empty comment"
+mkErrorResponse InvalidReqError = resp400 PlainTextContent "invalid request"
 
 -- Use our ``RqType`` helpers to write a function that will take the input
 -- ``Request`` from the Wai library and turn it into something our application
@@ -98,10 +99,17 @@ mkErrorResponse EmptyCommentError = resp400 PlainTextContent "empty comment"
 mkRequest
   :: Request
   -> IO ( Either Error RqType )
-mkRequest =
-  -- Remembering your pattern-matching skills will let you implement the entire
-  -- specification in this function.
-  error "mkRequest not implemented"
+mkRequest req = case (requestMethod req, pathInfo req) of
+  ("POST", [topic, "add"]) -> do
+    comment <- strictRequestBody req
+    return $ mkAddRequest topic comment
+  ("GET", [topic, "view"]) ->
+    return $ mkViewRequest topic
+  ("GET", ["list"]) ->
+    return $ mkListRequest
+  _ -> return $ Left InvalidReqError
+
+
 
 -- If we find that we need more information to handle a request, or we have a
 -- new type of request that we'd like to handle then we update the ``RqType``
@@ -117,15 +125,22 @@ mkRequest =
 handleRequest
   :: RqType
   -> Either Error Response
-handleRequest =
-  error "handleRequest not implemented"
+handleRequest (AddRq _ _) = Right $ resp200 PlainTextContent "add not implmented yet"
+handleRequest (ViewRq _) = Right $ resp200 PlainTextContent "view not implmented yet"
+handleRequest ListRq = Right $ resp200 PlainTextContent "list not implmented yet"
 
 -- Reimplement this function using the new functions and ``RqType`` constructors
 -- as a guide.
 app
   :: Application
-app =
-  error "app not reimplemented"
+app req cb = do
+  res <- mkRequest req
+  case res of
+    Left err -> cb $ mkErrorResponse err
+    Right req' ->
+      case handleRequest req' of
+        Right resp -> cb resp
+        Left err -> cb $ mkErrorResponse err
 
 runApp :: IO ()
 runApp = run 3000 app
